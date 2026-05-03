@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useRef } from "react";
-// import html2canvas from "html2canvas";
 import * as htmlToImage from "html-to-image";
 import { jsPDF } from "jspdf";
-import { BrainCircuit, AlertCircle, CheckCircle2, ChevronRight, Loader2, Bot, Send, Download, FileText } from "lucide-react";
+import { BrainCircuit, AlertCircle, CheckCircle2, ChevronRight, Loader2, Bot, Send, Download, FileText, AlertTriangle } from "lucide-react";
 
 export default function Dashboard() {
   // Input States
@@ -21,9 +20,9 @@ export default function Dashboard() {
   const [chatInput, setChatInput] = useState("");
   const [isChatting, setIsChatting] = useState(false);
 
-  // Prediction State
-  const [prediction, setPrediction] = useState<{ status: "Pass" | "Fail" | null; grade: string; confidence: number }>({
-    status: null, grade: "", confidence: 0,
+  // Prediction State (Now includes At-Risk and projectedScore)
+  const [prediction, setPrediction] = useState<{ status: "Pass" | "At-Risk" | "Fail" | null; grade: string; confidence: number; projectedScore: number }>({
+    status: null, grade: "", confidence: 0, projectedScore: 0
   });
 
   // PDF Target Reference
@@ -31,49 +30,21 @@ export default function Dashboard() {
 
   const isFormValid = caScore !== "" && attendance !== "" && studyHours !== "";
 
-  // The PDF Generation Function
-  // const handleDownloadPDF = async () => {
-  //   if (!reportRef.current) return;
-    
-  //   try {
-  //     // Temporarily add a class to style the PDF slightly differently if needed
-  //     reportRef.current.classList.add("pdf-export-mode");
-      
-  //     const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true });
-  //     const imgData = canvas.toDataURL("image/png");
-      
-  //     const pdf = new jsPDF("p", "mm", "a4");
-  //     const pdfWidth = pdf.internal.pageSize.getWidth();
-  //     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-  //     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-  //     pdf.save("FUTMINNA_AI_Student_Report.pdf");
-
-  //     reportRef.current.classList.remove("pdf-export-mode");
-  //   } catch (error) {
-  //     console.error("Failed to generate PDF", error);
-  //   }
-  // };
-
-  // The PDF Generation Function (Upgraded to html-to-image)
+  // The PDF Generation Function 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
     
     try {
-      // Temporarily add a class to style the PDF if needed
       reportRef.current.classList.add("pdf-export-mode");
       
-      // Use the modern html-to-image engine
       const imgData = await htmlToImage.toPng(reportRef.current, { 
         quality: 1, 
         pixelRatio: 2,
-        backgroundColor: '#ffffff' // Ensures no transparent background issues
+        backgroundColor: '#ffffff' 
       });
       
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      
-      // Calculate height to maintain aspect ratio
       const imgProps = pdf.getImageProperties(imgData);
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
@@ -87,7 +58,7 @@ export default function Dashboard() {
     }
   };
 
-  // Function 1: Handle the Initial Prediction
+  // Function 1: Handle the DYNAMIC Initial Prediction
   const handlePredict = async () => {
     if (!isFormValid) return;
     
@@ -95,21 +66,43 @@ export default function Dashboard() {
     setHasResult(false);
     setChatHistory([]); // Clear old chats
 
-    // Calculate basic math for UI display
-    const score = Number(caScore);
-    const isPass = score > 15 && Number(attendance) > 60;
-    const status = isPass ? "Pass" : "Fail";
-    
+    // --- DYNAMIC ALGORITHM ---
+    const ca = Number(caScore);
+    const att = Number(attendance);
+    const hours = Number(studyHours);
+
+    // Predict Exam Score (max 70)
+    // High attendance gives up to 30 marks. Study hours give up to 40 marks (capped at 25 hrs).
+    const predictedExam = (att / 100) * 30 + Math.min(hours, 25) * 1.6;
+    const projectedTotal = Math.round(ca + predictedExam);
+
+    // Standard A-F Grading Scale Mapping
+    let calcGrade = "F";
+    let calcStatus: "Pass" | "At-Risk" | "Fail" = "Fail";
+
+    if (projectedTotal >= 70) { calcGrade = "A"; calcStatus = "Pass"; }
+    else if (projectedTotal >= 60) { calcGrade = "B"; calcStatus = "Pass"; }
+    else if (projectedTotal >= 50) { calcGrade = "C"; calcStatus = "Pass"; }
+    else if (projectedTotal >= 45) { calcGrade = "D"; calcStatus = "At-Risk"; }
+    else if (projectedTotal >= 40) { calcGrade = "E"; calcStatus = "At-Risk"; }
+    else { calcGrade = "F"; calcStatus = "Fail"; }
+
+    // Dynamic Confidence Score (75% to 98%)
+    // Less confident on borderline grades, more confident on extreme highs/lows + slight randomization
+    const distanceToBorderline = Math.abs(projectedTotal - 40);
+    const calcConfidence = Math.min(98, 75 + Math.round(distanceToBorderline * 0.4) + Math.floor(Math.random() * 5));
+
     setPrediction({
-      status: status,
-      grade: isPass ? "B" : "F",
-      confidence: isPass ? 88 : 92,
+      status: calcStatus,
+      grade: calcGrade,
+      confidence: calcConfidence,
+      projectedScore: projectedTotal
     });
 
     const systemPrompt = `You are a supportive AI Academic Advisor at the Federal University of Technology, Minna. 
-    A student has the following current metrics: Continuous Assessment: ${caScore}/30, Attendance: ${attendance}%, Weekly Study Hours: ${studyHours}.
-    Our predictive model indicates this student is on a ${status.toUpperCase()} trajectory. 
-    Speak directly to the advisor. In 3 to 4 sentences, generate a formal, professional intervention plan based on these exact numbers. 
+    A student has the following metrics: Continuous Assessment: ${caScore}/30, Attendance: ${attendance}%, Weekly Study Hours: ${studyHours}.
+    Our predictive model projects they will score ${projectedTotal}/100, resulting in a grade of ${calcGrade}. Their trajectory is classified as ${calcStatus.toUpperCase()}. 
+    Speak directly to the advisor. In 3 to 4 sentences, generate a formal, professional intervention plan based on these specific numbers and grade. 
     Do not use bolding or markdown asterisks in your response.`;
 
     try {
@@ -142,7 +135,8 @@ export default function Dashboard() {
     setIsChatting(true);
 
     const followUpPrompt = `You are a supportive AI Academic Advisor at FUTMINNA. 
-    Current Student Metrics - CA: ${caScore}, Attendance: ${attendance}%, Study: ${studyHours}.
+    Context: Model predicted a ${prediction.projectedScore}/100 (Grade ${prediction.grade}, Status: ${prediction.status}).
+    Metrics - CA: ${caScore}, Attendance: ${attendance}%, Study: ${studyHours}.
     The user just asked you this follow-up question regarding the prediction: "${userMessage}"
     Respond concisely and helpfully. Do not use bolding or markdown asterisks.`;
 
@@ -161,6 +155,15 @@ export default function Dashboard() {
       setIsChatting(false);
     }
   };
+
+  // Helper function to dynamically color the UI badges
+  const getStatusStyle = () => {
+    if (prediction.status === "Pass") return { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", val: "text-emerald-600", Icon: CheckCircle2 };
+    if (prediction.status === "At-Risk") return { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", val: "text-amber-600", Icon: AlertTriangle };
+    return { bg: "bg-red-50", border: "border-red-200", text: "text-red-800", val: "text-red-600", Icon: AlertCircle };
+  };
+
+  const statusStyle = getStatusStyle();
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
@@ -274,10 +277,9 @@ export default function Dashboard() {
             <div className="flex-1 flex flex-col gap-6 animate-in fade-in duration-500">
               
               {/* === THIS IS THE PDF TARGET AREA === */}
-              {/* Only this div and its contents will be downloaded */}
               <div ref={reportRef} className="bg-white p-2 flex flex-col gap-4">
                 
-                {/* Official PDF Header (Hidden normally, but visible in PDF output structure) */}
+                {/* Official PDF Header */}
                 <div className="flex items-center gap-3 border-b border-slate-200 pb-3 mb-2">
                   <FileText className="w-6 h-6 text-slate-800" />
                   <div>
@@ -293,15 +295,16 @@ export default function Dashboard() {
                   <div><span className="text-xs text-slate-500 font-bold block">Study Hours</span><span className="font-mono text-slate-900 font-bold">{studyHours} hrs</span></div>
                 </div>
 
-                {/* Prediction Badges */}
+                {/* Dynamic Prediction Badges */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className={`p-4 rounded-xl border ${prediction.status === "Pass" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+                  <div className={`p-4 rounded-xl border ${statusStyle.bg} ${statusStyle.border}`}>
                     <div className="flex items-center gap-2 mb-1">
-                      {prediction.status === "Pass" ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <AlertCircle className="w-5 h-5 text-red-600" />}
-                      <span className={`text-sm font-bold ${prediction.status === "Pass" ? "text-emerald-800" : "text-red-800"}`}>Predicted Outcome</span>
+                      <statusStyle.Icon className={`w-5 h-5 ${statusStyle.val}`} />
+                      <span className={`text-sm font-bold ${statusStyle.text}`}>Predicted Trajectory</span>
                     </div>
-                    <div className={`text-3xl font-black ${prediction.status === "Pass" ? "text-emerald-600" : "text-red-600"}`}>
-                      {prediction.status} ({prediction.grade})
+                    <div className="flex items-baseline gap-2">
+                      <div className={`text-3xl font-black ${statusStyle.val}`}>{prediction.grade}</div>
+                      <div className={`text-sm font-semibold ${statusStyle.text}`}>({prediction.status} - {prediction.projectedScore}/100)</div>
                     </div>
                   </div>
 
@@ -311,7 +314,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Official AI Prescription (First message only) */}
+                {/* Official AI Prescription */}
                 <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 text-slate-300">
                   <h3 className="text-white font-medium mb-3 flex items-center gap-2">
                     <Bot className="w-4 h-4 text-blue-400" />
@@ -326,7 +329,7 @@ export default function Dashboard() {
 
               <hr className="border-slate-200 my-2" />
 
-              {/* === CHAT INTERFACE (Strictly outside the PDF target) === */}
+              {/* === CHAT INTERFACE === */}
               <div className="flex flex-col flex-1 mt-2">
                 <h3 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2">
                   <Bot className="w-4 h-4" /> Ask Follow-Up Questions
@@ -334,7 +337,6 @@ export default function Dashboard() {
                 
                 <div className="flex-1 flex flex-col bg-slate-50 border border-slate-200 rounded-xl overflow-hidden h-[250px]">
                   
-                  {/* Chat Messages Area (Excluding the very first official message) */}
                   <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-white">
                     {chatHistory.slice(1).map((msg, idx) => (
                       <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -364,7 +366,6 @@ export default function Dashboard() {
                       </div>
                     )}
                     
-                    {/* Empty state for the chat area */}
                     {chatHistory.length <= 1 && !isChatting && (
                       <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
                         Type below to ask the AI about the results.
@@ -372,7 +373,6 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* Chat Input */}
                   <form onSubmit={handleSendMessage} className="p-3 bg-slate-50 border-t border-slate-200 flex gap-2">
                     <input
                       type="text"

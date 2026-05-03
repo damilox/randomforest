@@ -105,10 +105,10 @@ export default function Sidebar() {
             Model Settings
           </Link>
 
-          <button className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors text-sm font-medium">
+          {/* <button className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors text-sm font-medium">
             <HelpCircle className="w-5 h-5" />
             Help & FAQ
-          </button>
+          </button> */}
         </div>
 
         {/* User Profile */}
@@ -118,7 +118,7 @@ export default function Sidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-medium text-slate-200">Admin Panel</span>
-            <span className="text-xs text-blue-400">Gemini 2.5 Active</span>
+            {/* <span className="text-xs text-blue-400">Gemini 2.5 Active</span> */}
           </div>
         </div>
       </aside>
