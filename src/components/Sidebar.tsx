@@ -111,14 +111,14 @@ export default function Sidebar() {
           </button> */}
         </div>
 
-        {/* User Profile */}
+        {/* User Profile - UPDATED FOR DEFENSE */}
         <div className="p-4 m-4 mt-0 bg-slate-800/50 rounded-xl border border-slate-700/50 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-            A
+            JO
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-slate-200">Admin Panel</span>
-            {/* <span className="text-xs text-blue-400">Gemini 2.5 Active</span> */}
+            <span className="text-sm font-medium text-slate-200">J.B. Olasehinde</span>
+            <span className="text-xs text-blue-400">2020/2/100005/DCT</span>
           </div>
         </div>
       </aside>
