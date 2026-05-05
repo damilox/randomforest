@@ -55,7 +55,7 @@ export default function Sidebar() {
         <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-800 md:border-none">
           <div className="flex items-center gap-3">
             <BrainCircuit className="text-blue-500 w-8 h-8" />
-            <span className="text-white font-bold text-xl tracking-tight">FUTMINNA AI</span>
+            <span className="text-white font-bold text-xl tracking-tight">FUTMINNA</span>
           </div>
           {/* Mobile-only Close Button */}
           <button 
